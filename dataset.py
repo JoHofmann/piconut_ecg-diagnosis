@@ -37,9 +37,9 @@ class ECGDataset(Dataset):
         self.labels = df
         self.leads = ['I', 'II', 'III', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6']
         if leads == 'all':
-            self.use_leads = np.where(np.in1d(self.leads, self.leads))[0]
+            self.use_leads = np.where(np.isin(self.leads, self.leads))[0]
         else:
-            self.use_leads = np.where(np.in1d(self.leads, leads))[0]
+            self.use_leads = np.where(np.isin(self.leads, leads))[0]
         self.nleads = len(self.use_leads)
         self.classes = ['SNR', 'AF', 'IAVB', 'LBBB', 'RBBB', 'PAC', 'PVC', 'STD', 'STE']
         self.n_classes = len(self.classes)
@@ -55,7 +55,7 @@ class ECGDataset(Dataset):
         ecg_data = ecg_data[-15000:, self.use_leads]
         result = np.zeros((15000, self.nleads)) # 30 s, 500 Hz
         result[-nsteps:, :] = ecg_data
-        if self.label_dict.get(patient_id):
+        if self.label_dict.get(patient_id) is not None:
             labels = self.label_dict.get(patient_id)
         else:
             labels = row[self.classes].to_numpy(dtype=np.float32)
