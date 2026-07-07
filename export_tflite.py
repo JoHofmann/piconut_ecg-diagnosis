@@ -59,14 +59,7 @@ def main():
         args.onnx_path,
         input_names=['input'],
         output_names=['output'],
-        opset_version=13,
-        do_constant_folding=True,
-        # Force the legacy TorchScript-based exporter. The newer dynamo-based
-        # exporter (default in recent PyTorch) doesn't have a decomposition
-        # for aten.adaptive_max_pool2d yet, which resnet.py relies on.
-        dynamo=False,
-        # Fixed shapes on purpose: TFLite full-integer quantization needs
-        # static shapes, and we're avoiding extra graph fusing/complexity.
+        opset_version=25,
     )
     print(f'Exported ONNX model to {args.onnx_path}')
 
@@ -82,13 +75,17 @@ def main():
     simplified_model, check = simplify(
         onnx_model,
         overwrite_input_shapes={'input': [1, nleads, seq_len]},
+        skip_fuse_bn=True,
+        skip_constant_folding=True,
+        perform_optimization=False,
+        skipped_optimizers=['fuse_pad_into_pool'],
     )
     if not check:
         raise RuntimeError('onnx-simplifier could not validate the simplified model')
 
     simplified_path = args.onnx_path.replace('.onnx', '_simplified.onnx')
     onnx.save(simplified_model, simplified_path)
-    args.onnx_path = simplified_path
+    # args.onnx_path = simplified_path
     print(f'Simplified ONNX model saved to {simplified_path}')
 
     # --- 3. Build calibration samples (kept as PyTorch-layout numpy arrays for now) ---
@@ -148,6 +145,7 @@ def main():
     converter = tf.lite.TFLiteConverter.from_saved_model(saved_model_dir)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
     converter.representative_dataset = representative_dataset_gen
+    converter.experimental_new_quantizer = True
     # Full-integer quantization: every op in TFLITE_BUILTINS_INT8 forced to int8,
     # no special fusing/graph surgery beyond TF's own standard quantizer.
     converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
